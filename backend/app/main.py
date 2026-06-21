@@ -12,7 +12,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import expedientes, chat, hpn
+from .routers import expedientes, chat, hpn, red
 
 # ── Logging ─────────────────────────────────
 logging.basicConfig(
@@ -31,6 +31,7 @@ app = FastAPI(
         "- M1: Esqueleto de backend\n"
         "- M3: Ingesta del expediente (Intake)\n"
         "- M4/M5: Agentes de Extracción y Construcción Matriz HPN\n"
+        "- M6: Red compleja multicapa y métricas\n"
         "- Chatbot: RAG Simple\n\n"
         "**Modelos soportados:**\n"
         "- Groq (Llama-3)\n"
@@ -71,6 +72,7 @@ app.add_middleware(
 app.include_router(expedientes.router)
 app.include_router(chat.router)
 app.include_router(hpn.router)
+app.include_router(red.router)
 
 
 # ── Health Check ────────────────────────────
