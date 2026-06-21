@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  :root,
+  [data-theme="dark"] {
+    --color-bg-primary: 10, 14, 26;
+    --color-bg-secondary: 17, 24, 39;
+    --color-bg-card: 26, 31, 53;
+    --color-bg-card-hover: 34, 40, 69;
+    --color-bg-input: 15, 19, 32;
+
+    --color-accent-primary: 99, 102, 241;
+    --color-accent-primary-light: 129, 140, 248;
+    --color-accent-secondary: 6, 182, 212;
+    --color-accent-success: 16, 185, 129;
+    --color-accent-warning: 245, 158, 11;
+    --color-accent-danger: 239, 68, 68;
+
+    --color-text-primary: 241, 245, 249;
+    --color-text-secondary: 148, 163, 184;
+    --color-text-muted: 100, 116, 139;
+    --color-text-accent: 165, 180, 252;
+  }
+
+  [data-theme="midnight"] {
+    --color-bg-primary: 5, 5, 23;
+    --color-bg-secondary: 9, 9, 36;
+    --color-bg-card: 15, 15, 45;
+    --color-bg-card-hover: 25, 25, 60;
+    --color-bg-input: 10, 10, 30;
+
+    --color-accent-primary: 168, 85, 247;
+    --color-accent-primary-light: 192, 132, 252;
+    --color-accent-secondary: 236, 72, 153;
+
+    --color-accent-success: 16, 185, 129;
+    --color-accent-warning: 245, 158, 11;
+    --color-accent-danger: 239, 68, 68;
+
+    --color-text-primary: 250, 250, 250;
+    --color-text-secondary: 161, 161, 170;
+    --color-text-muted: 113, 113, 122;
+    --color-text-accent: 216, 180, 254;
+  }
+
+  [data-theme="ocean"] {
+    --color-bg-primary: 2, 20, 34;
+    --color-bg-secondary: 4, 30, 50;
+    --color-bg-card: 8, 45, 75;
+    --color-bg-card-hover: 15, 60, 95;
+    --color-bg-input: 6, 35, 60;
+
+    --color-accent-primary: 14, 165, 233;
+    --color-accent-primary-light: 56, 189, 248;
+    --color-accent-secondary: 20, 184, 166;
+
+    --color-accent-success: 16, 185, 129;
+    --color-accent-warning: 245, 158, 11;
+    --color-accent-danger: 239, 68, 68;
+
+    --color-text-primary: 240, 249, 255;
+    --color-text-secondary: 186, 230, 253;
+    --color-text-muted: 125, 211, 252;
+    --color-text-accent: 186, 230, 253;
+
+    [data-theme="catppuccin"] {
+      --color-bg-primary: 36, 39, 58;
+      --color-bg-secondary: 48, 52, 70;
+      --color-bg-card: 30, 32, 48;
+      --color-bg-card-hover: 54, 58, 79;
+      --color-bg-input: 24, 24, 37;
+
+      --color-accent-primary: 198, 160, 246;
+      /* Mauve */
+      --color-accent-primary-light: 245, 189, 230;
+      /* Pink */
+      --color-accent-secondary: 138, 173, 244;
+      /* Blue */
+
+      --color-accent-success: 166, 218, 149;
+      /* Green */
+      --color-accent-warning: 238, 212, 159;
+      /* Yellow */
+      --color-accent-danger: 237, 135, 150;
+      /* Red */
+
+      --color-text-primary: 202, 211, 245;
+      /* Text */
+      --color-text-secondary: 184, 192, 224;
+      /* Subtext 1 */
+      --color-text-muted: 110, 115, 141;
+      /* Overlay 1 */
+      --color-text-accent: 240, 198, 198;
+      /* Flamingo */
+    }
+
+    [data-theme="tokyo-night"] {
+      --color-bg-primary: 26, 27, 38;
+      --color-bg-secondary: 36, 40, 59;
+      --color-bg-card: 31, 35, 53;
+      --color-bg-card-hover: 41, 46, 66;
+      --color-bg-input: 22, 22, 30;
+
+      --color-accent-primary: 122, 162, 247;
+      /* Blue */
+      --color-accent-primary-light: 187, 154, 247;
+      /* Purple */
+      --color-accent-secondary: 255, 158, 100;
+      /* Orange */
+
+      --color-accent-success: 158, 206, 106;
+      /* Green */
+      --color-accent-warning: 224, 175, 104;
+      /* Yellow */
+      --color-accent-danger: 247, 118, 142;
+      /* Red */
+
+      --color-text-primary: 192, 202, 245;
+      --color-text-secondary: 169, 177, 214;
+      --color-text-muted: 86, 95, 137;
+      --color-text-accent: 157, 124, 205;
+    }
+  }
+
+  @layer base {
+    html {
+      @apply scroll-smooth antialiased;
+    }
+
+    body {
+      @apply bg-bg-primary text-text-primary min-h-screen overflow-x-hidden font-sans;
+    }
+  }
+
+  @layer utilities {
+    .glass-effect {
+      @apply bg-bg-card/75 backdrop-blur-md border border-border-default shadow-lg;
+    }
+
+    .text-gradient {
+      @apply bg-gradient-primary bg-clip-text text-transparent;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+      @apply bg-border-default rounded-full;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+      @apply bg-border-active;
+    }
+  }
+
+  /* Background glow effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60vh;
+    @apply bg-gradient-glow pointer-events-none -z-10;
+  }
+}
