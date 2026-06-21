@@ -3,6 +3,9 @@ import { Upload, FileText, CheckCircle2, XCircle, FileJson, File, X, Info, Chevr
 import ChatLayout from './ChatLayout';
 
 const API_BASE = 'http://localhost:8000';
+const HF_CHAT_DEFAULT_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3';
+const HF_CHAT_LIGHT_MODEL = 'HuggingFaceH4/zephyr-7b-beta';
+const HF_CHAT_EXTRACTION_MODEL = 'google/flan-t5-large';
 
 // Format utility
 const formatBytes = (bytes) => {
@@ -133,37 +136,175 @@ export default function DashboardLayout() {
   const [activeSection, setActiveSection] = useState(null);
   
   const [toasts, setToasts] = useState([]);
-  const [matriz, setMatriz] = useState(null);
+  const [hpnData, setHpnData] = useState(null);
   const [loadingMatriz, setLoadingMatriz] = useState(false);
+  const [matrizProgress, setMatrizProgress] = useState('');
+  const [hpnProvider, setHpnProvider] = useState('auto');
+  const [ollamaModels, setOllamaModels] = useState([]);
+  const [defaultOllamaModel, setDefaultOllamaModel] = useState('llama3.2');
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState('');
+  const [hfLegalModels, setHfLegalModels] = useState([]);
+  const [selectedHfModel, setSelectedHfModel] = useState(HF_CHAT_DEFAULT_MODEL);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadModels = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/modelos`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const localModels = (data.local || []).map(modelo => modelo.name).filter(Boolean);
+        const fallback = data.default_ollama_model || 'llama3.2';
+        const hfModels = (data.huggingface || []).map(modelo => modelo.model_id).filter(Boolean);
+
+        if (!isMounted) return;
+        setOllamaModels(localModels);
+        setDefaultOllamaModel(fallback);
+        setSelectedOllamaModel(prev => prev || fallback);
+        setHfLegalModels(hfModels);
+        setSelectedHfModel(prev => prev || (hfModels[0] || HF_CHAT_DEFAULT_MODEL));
+      } catch (error) {
+        if (!isMounted) return;
+        setOllamaModels([]);
+        setDefaultOllamaModel('llama3.2');
+        setSelectedOllamaModel(prev => prev || 'llama3.2');
+        setHfLegalModels([]);
+        setSelectedHfModel(prev => prev || HF_CHAT_DEFAULT_MODEL);
+      }
+    };
+
+    loadModels();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const fetchMatriz = async (casoId) => {
     try {
       const res = await fetch(`${API_BASE}/api/expedientes/${casoId}/matriz`);
       if (res.ok) {
         const data = await res.json();
-        setMatriz(data.matriz);
+        if (data.filas_hpn) {
+          setHpnData(data);
+        }
       }
     } catch (e) {
       console.error("Error fetching matriz", e);
     }
   };
 
+  const resolveEntity = (id, tipo) => {
+    if (!hpnData || !id) return id || '-';
+    const list = hpnData[tipo] || [];
+    const item = list.find(e => {
+      if (tipo === 'hechos') return e.hecho_id === id;
+      if (tipo === 'pruebas') return e.prueba_id === id;
+      if (tipo === 'normas') return e.norma_id === id;
+      return false;
+    });
+    if (!item) return id;
+    if (tipo === 'normas') return item.referencia || item.descripcion || id;
+    return item.descripcion || id;
+  };
+
+  const updateFila = async (filaId, updates) => {
+    if (!results?.casoId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz/${filaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Error al actualizar fila');
+      const data = await res.json();
+      setHpnData(prev => ({
+        ...prev,
+        filas_hpn: prev.filas_hpn.map(f => f.fila_id === filaId ? data.fila : f),
+        auditoria: data.auditoria || prev.auditoria,
+      }));
+      addToast('Fila actualizada', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const deleteFila = async (filaId) => {
+    if (!results?.casoId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz/${filaId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Error al eliminar fila');
+      const data = await res.json();
+      setHpnData(prev => ({
+        ...prev,
+        filas_hpn: prev.filas_hpn.filter(f => f.fila_id !== filaId),
+        auditoria: data.auditoria || prev.auditoria,
+      }));
+      addToast('Fila eliminada', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
   const generateMatriz = async () => {
     if (!results) return;
     setLoadingMatriz(true);
+    setMatrizProgress('Iniciando agentes M4/M5/M8...');
     addToast('Ejecutando Agentes de Inteligencia Artificial...', 'info');
     try {
-      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz`, { method: 'POST' });
-      if (!res.ok) throw new Error('Error generando matriz HPN');
+      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: hpnProvider,
+          ollama_model: hpnProvider === 'ollama' ? (selectedOllamaModel || defaultOllamaModel) : null,
+          hf_model: hpnProvider === 'huggingface' ? selectedHfModel : null,
+          pausa_segundos: 1.5,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Error generando matriz HPN');
+      }
       const data = await res.json();
-      setMatriz(data.matriz);
-      addToast('Matriz HPN generada exitosamente', 'success');
+      setHpnData(data);
+      const alertas = data.auditoria?.length || 0;
+      const filas = data.filas_hpn?.length || 0;
+      addToast(`Matriz HPN generada: ${filas} filas, ${alertas} alertas de auditoría`, 'success');
     } catch (err) {
       addToast(err.message, 'error');
     } finally {
       setLoadingMatriz(false);
+      setMatrizProgress('');
     }
   };
+
+  const exportCSV = async () => {
+    if (!results?.casoId) {
+      addToast('No hay caso para exportar', 'error');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz/export?format=csv`);
+      if (!res.ok) throw new Error('Error al exportar CSV');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `matriz_hpn_${results.casoId}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      addToast('Exportación CSV completada', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const matriz = hpnData?.filas_hpn || null;
+  const auditoria = hpnData?.auditoria || [];
 
   const addToast = (message, type = 'info') => {
     const id = Date.now();
@@ -193,6 +334,7 @@ export default function DashboardLayout() {
     }
     setFile(selectedFile);
     setResults(null);
+    setHpnData(null);
     setProgress(0);
     setSteps({ upload: null, process: null, fragments: null });
   };
@@ -489,7 +631,54 @@ export default function DashboardLayout() {
                           </p>
                         </div>
                         
-                        {!matriz && (
+                        <div className="flex flex-col gap-3 items-stretch md:items-end">
+                          <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap justify-end">
+                            <span className="font-semibold uppercase tracking-wider">Proveedor</span>
+                            <select
+                              value={hpnProvider}
+                              onChange={(e) => setHpnProvider(e.target.value)}
+                              className="bg-bg-input border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer"
+                            >
+                              <option value="auto">Auto (Groq → Ollama)</option>
+                              <option value="groq">Groq</option>
+                              <option value="ollama">Ollama</option>
+                              <option value="gemini">Gemini</option>
+                              <option value="huggingface">Hugging Face juridico</option>
+                            </select>
+                            {hpnProvider === 'ollama' && (
+                              <>
+                                <span className="font-semibold uppercase tracking-wider">Modelo</span>
+                                <select
+                                  value={selectedOllamaModel}
+                                  onChange={(e) => setSelectedOllamaModel(e.target.value)}
+                                  className="bg-bg-input border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer min-w-44"
+                                >
+                                  {ollamaModels.length > 0 ? (
+                                    ollamaModels.map(name => (
+                                      <option key={name} value={name}>{name}</option>
+                                    ))
+                                  ) : (
+                                    <option value={defaultOllamaModel}>{defaultOllamaModel}</option>
+                                  )}
+                                </select>
+                              </>
+                            )}
+                            {hpnProvider === 'huggingface' && (
+                              <>
+                                <span className="font-semibold uppercase tracking-wider">Modelo juridico</span>
+                                <select
+                                  value={selectedHfModel}
+                                  onChange={(e) => setSelectedHfModel(e.target.value)}
+                                  className="bg-bg-input border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer min-w-44"
+                                >
+                                  {(hfLegalModels.length > 0 ? hfLegalModels : [HF_CHAT_DEFAULT_MODEL, HF_CHAT_LIGHT_MODEL, HF_CHAT_EXTRACTION_MODEL]).map(name => (
+                                    <option key={name} value={name}>{name}</option>
+                                  ))}
+                                </select>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex gap-2 justify-end flex-wrap">
                           <button 
                             onClick={generateMatriz}
                             disabled={loadingMatriz}
@@ -498,10 +687,22 @@ export default function DashboardLayout() {
                             {loadingMatriz ? (
                               <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Procesando...</>
                             ) : (
-                              <><Layers size={18} /> Generar Matriz HPN</>
+                              <><Layers size={18} /> {matriz ? 'Regenerar Matriz HPN' : 'Generar Matriz HPN'}</>
                             )}
                           </button>
-                        )}
+                          {matriz && matriz.length > 0 && (
+                            <button 
+                              onClick={exportCSV}
+                              className="px-4 py-2.5 bg-bg-input border border-border-default hover:border-accent-primary text-text-primary font-semibold rounded-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                            >
+                              📥 Exportar CSV
+                            </button>
+                          )}
+                          </div>
+                          {loadingMatriz && matrizProgress && (
+                            <p className="text-xs text-text-muted text-right">{matrizProgress}</p>
+                          )}
+                        </div>
                       </div>
 
                       <div className="p-0">
@@ -513,46 +714,135 @@ export default function DashboardLayout() {
                             </p>
                           </div>
                         ) : matriz.length === 0 ? (
-                          <div className="p-12 text-center text-text-muted">No se extrajeron elementos relevantes.</div>
+                          <div className="p-12 text-center text-text-muted space-y-2">
+                            <p>No se generaron filas HPN útiles.</p>
+                            <p className="text-xs max-w-md mx-auto">
+                              Esto no siempre significa error: a veces el expediente no deja vínculos suficientes entre hechos, pruebas y normas, o el modelo devolvió una matriz muy conservadora.
+                            </p>
+                          </div>
                         ) : (
                           <div className="overflow-x-auto scrollbar-custom">
                             <table className="w-full text-sm text-left text-text-primary">
                               <thead className="text-xs text-text-secondary uppercase bg-bg-input/50 border-b border-border-subtle">
                                 <tr>
-                                  <th className="px-6 py-4 font-semibold">Tipo</th>
-                                  <th className="px-6 py-4 font-semibold w-1/2">Descripción Extrída</th>
-                                  <th className="px-6 py-4 font-semibold">Relevancia</th>
+                                  <th className="px-4 py-4 font-semibold">Fila</th>
+                                  <th className="px-4 py-4 font-semibold">Elemento</th>
+                                  <th className="px-4 py-4 font-semibold min-w-[180px]">Hecho</th>
+                                  <th className="px-4 py-4 font-semibold min-w-[160px]">Pruebas</th>
+                                  <th className="px-4 py-4 font-semibold min-w-[140px]">Normas</th>
+                                  <th className="px-4 py-4 font-semibold">Fuente</th>
+                                  <th className="px-4 py-4 font-semibold">Estado</th>
+                                  <th className="px-4 py-4 font-semibold">Riesgo</th>
+                                  <th className="px-4 py-4 font-semibold min-w-[140px]">Acción</th>
+                                  <th className="px-4 py-4 font-semibold">Editar</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border-subtle">
                                 {matriz.map((row, idx) => (
-                                  <tr key={idx} className="hover:bg-bg-input/30 transition-colors group">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                        row.tipo === 'HECHO' ? 'bg-accent-primary/10 text-accent-primary-light border-accent-primary/20' :
-                                        row.tipo === 'PRUEBA' ? 'bg-accent-secondary/10 text-accent-secondary border-accent-secondary/20' :
-                                        row.tipo === 'NORMA' ? 'bg-accent-success/10 text-accent-success border-accent-success/20' :
-                                        'bg-bg-input text-text-muted border-border-default'
-                                      }`}>
-                                        {row.tipo}
+                                  <tr key={row.fila_id || idx} className="hover:bg-bg-input/30 transition-colors group align-top">
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-accent-primary/10 text-accent-primary-light border-accent-primary/20">
+                                        {row.fila_id || `F-${String(idx + 1).padStart(3, '0')}`}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4">
-                                      <p className="leading-relaxed text-text-primary">{row.descripcion}</p>
+                                    <td className="px-4 py-4 text-xs text-text-secondary max-w-[120px]">
+                                      {row.elemento_juridico || 'Por determinar'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      <span className={`text-xs font-medium ${
-                                        row.relevancia?.toLowerCase() === 'alta' ? 'text-accent-danger' : 
-                                        row.relevancia?.toLowerCase() === 'media' ? 'text-accent-warning' : 'text-text-muted'
-                                      }`}>
-                                        {row.relevancia || 'Normal'}
-                                      </span>
+                                    <td className="px-4 py-4">
+                                      <p className="leading-relaxed text-text-primary text-xs">{resolveEntity(row.hecho_id, 'hechos')}</p>
+                                      <span className="text-[10px] text-text-muted font-mono">{row.hecho_id}</span>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      {(row.prueba_ids || []).length > 0 ? row.prueba_ids.map(id => (
+                                        <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'pruebas')}</p>
+                                      )) : <span className="text-text-muted text-xs">Sin pruebas</span>}
+                                    </td>
+                                    <td className="px-4 py-4">
+                                      {(row.norma_ids || []).length > 0 ? row.norma_ids.map(id => (
+                                        <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'normas')}</p>
+                                      )) : <span className="text-text-muted text-xs">Sin normas</span>}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-xs text-text-muted">
+                                      Pág. {row.fuente_expediente?.pagina ?? '-'}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <select
+                                        value={row.estado_epistemico || 'por_evaluar'}
+                                        onChange={(e) => updateFila(row.fila_id, { estado_epistemico: e.target.value })}
+                                        className={`text-xs font-medium px-2 py-1 rounded-full border bg-transparent cursor-pointer ${
+                                          (row.estado_epistemico || '').toLowerCase() === 'probado' ? 'text-accent-success border-accent-success/20' :
+                                          (row.estado_epistemico || '').toLowerCase() === 'controvertido' ? 'text-accent-warning border-accent-warning/20' :
+                                          (row.estado_epistemico || '').toLowerCase() === 'sin_prueba' ? 'text-accent-danger border-accent-danger/20' :
+                                          'text-text-muted border-border-default'
+                                        }`}
+                                      >
+                                        <option value="probado">probado</option>
+                                        <option value="controvertido">controvertido</option>
+                                        <option value="sin_prueba">sin_prueba</option>
+                                        <option value="por_evaluar">por_evaluar</option>
+                                      </select>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <select
+                                        value={row.riesgo || 'medio'}
+                                        onChange={(e) => updateFila(row.fila_id, { riesgo: e.target.value })}
+                                        className="text-xs bg-bg-input border border-border-default rounded-md px-2 py-1 cursor-pointer"
+                                      >
+                                        <option value="bajo">bajo</option>
+                                        <option value="medio">medio</option>
+                                        <option value="alto">alto</option>
+                                        <option value="critico">critico</option>
+                                      </select>
+                                    </td>
+                                    <td className="px-4 py-4 text-xs text-text-secondary max-w-[160px]">
+                                      {row.accion_sugerida || '-'}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <button
+                                        onClick={() => deleteFila(row.fila_id)}
+                                        className="text-xs text-accent-danger hover:bg-accent-danger/10 px-2 py-1 rounded-md transition-colors"
+                                      >
+                                        Eliminar
+                                      </button>
                                     </td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
+
+                          {auditoria.length > 0 && (
+                            <div className="p-6 border-t border-border-subtle bg-bg-input/20">
+                              <h4 className="text-sm font-bold text-text-primary mb-3">
+                                Auditoría M8 — {auditoria.length} alertas en {matriz.length} filas
+                              </h4>
+                              <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-custom">
+                                {['critica', 'alta', 'media'].map(sev => {
+                                  const items = auditoria.filter(a => a.severidad === sev);
+                                  if (items.length === 0) return null;
+                                  return (
+                                    <div key={sev}>
+                                      <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-1">{sev}</p>
+                                      {items.slice(0, 15).map((alert, i) => (
+                                        <div key={i} className={`text-xs px-3 py-2 rounded-lg mb-1 border ${
+                                          sev === 'critica' ? 'border-accent-danger/30 bg-accent-danger/5 text-accent-danger' :
+                                          sev === 'alta' ? 'border-accent-warning/30 bg-accent-warning/5 text-accent-warning' :
+                                          'border-border-default bg-bg-input/50 text-text-secondary'
+                                        }`}>
+                                          <span className="font-mono font-bold">{alert.codigo}</span>
+                                          {alert.fila_id && <span className="ml-2 opacity-70">[{alert.fila_id}]</span>}
+                                          <span className="ml-2">{alert.mensaje}</span>
+                                        </div>
+                                      ))}
+                                      {items.length > 15 && (
+                                        <p className="text-[10px] text-text-muted ml-2">+{items.length - 15} alertas más...</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         )}
                       </div>
                     </div>

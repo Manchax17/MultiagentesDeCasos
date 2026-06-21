@@ -30,7 +30,7 @@ from ..schemas.expediente import (
     TipoSeccion,
 )
 from ..services.intake import procesar_pdf
-from ..services.storage import caso_docs_dir
+from ..services.storage import caso_docs_dir, limpiar_docs_caso, limpiar_casos_antiguos
 
 logger = logging.getLogger(__name__)
 
@@ -305,3 +305,21 @@ async def listar_casos():
         )
         for c in _casos.values()
     ]
+
+
+@router.delete(
+    "/{caso_id}/docs",
+    summary="Limpiar documentos originales del caso",
+    description="Elimina el archivo PDF subido para ahorrar espacio. Los fragmentos y metadatos se mantienen.",
+)
+async def limpiar_documentos(caso_id: str):
+    """Elimina el archivo PDF original de la carpeta /docs/."""
+    if caso_id not in _casos:
+        raise HTTPException(status_code=404, detail=f"Caso {caso_id} no encontrado")
+
+    if limpiar_docs_caso(caso_id):
+        # Actualizar estado si queremos
+        _casos[caso_id]["ruta_pdf"] = ""
+        return {"status": "success", "mensaje": "Documentos originales eliminados"}
+    else:
+        raise HTTPException(status_code=500, detail="No se pudo eliminar o ya estaba eliminado")

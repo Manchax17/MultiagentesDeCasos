@@ -59,3 +59,32 @@ def caso_audit_dir(caso_id: str) -> Path:
     p = AUDIT_DIR / caso_id
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+import shutil
+import time
+
+def limpiar_docs_caso(caso_id: str) -> bool:
+    """Elimina el directorio de documentos originales de un caso (el PDF subido)."""
+    p = DOCS_DIR / caso_id
+    if p.exists() and p.is_dir():
+        try:
+            shutil.rmtree(p)
+            return True
+        except Exception:
+            return False
+    return False
+
+def limpiar_casos_antiguos(max_age_hours: int = 24) -> int:
+    """Limpia los documentos originales de los casos más antiguos de X horas."""
+    count = 0
+    now = time.time()
+    for p in DOCS_DIR.iterdir():
+        if p.is_dir():
+            age_hours = (now - p.stat().st_mtime) / 3600
+            if age_hours > max_age_hours:
+                try:
+                    shutil.rmtree(p)
+                    count += 1
+                except Exception:
+                    pass
+    return count

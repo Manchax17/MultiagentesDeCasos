@@ -57,12 +57,29 @@ class Norma(BaseModel):
     )
 
 
+class FuenteExpediente(BaseModel):
+    """Referencia trazable al fragmento del expediente."""
+    pagina: Optional[int] = None
+    fragmento_id: Optional[str] = None
+
+
 class HPNRow(BaseModel):
     """Fila de la matriz Hecho-Prueba-Norma."""
     fila_id: str
     hecho_id: str
     prueba_ids: list[str] = Field(default_factory=list)
     norma_ids: list[str] = Field(default_factory=list)
+    elemento_juridico: Optional[str] = Field(
+        default=None,
+        description="Pretensión, defensa, requisito o punto de decisión",
+    )
+    fuente_expediente: Optional[FuenteExpediente] = None
+    contradicciones: list[str] = Field(default_factory=list)
+    agente_responsable: str = Field(default="agente_hpn_m5")
+    revision_humana: str = Field(
+        default="pendiente",
+        description="pendiente | revisado | corregido | aprobado | rechazado",
+    )
     estado_epistemico: str = Field(
         default="por_evaluar",
         description="probado | controvertido | sin_prueba | por_evaluar"

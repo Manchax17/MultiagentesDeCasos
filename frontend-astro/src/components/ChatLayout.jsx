@@ -62,7 +62,12 @@ export default function ChatLayout({ casoId, onBack }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [model, setModel] = useState('groq'); // gemini o groq
+  const [model, setModel] = useState('ollama'); // ollama, gemini o groq
+  const [ollamaModels, setOllamaModels] = useState([]);
+  const [defaultOllamaModel, setDefaultOllamaModel] = useState('llama3.2');
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState('');
+  const [hfLegalModels, setHfLegalModels] = useState([]);
+  const [selectedHfModel, setSelectedHfModel] = useState('ayushhh1662309/legal-chatbot-llama3-8b-Q5-K_M-gguf');
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -72,6 +77,41 @@ export default function ChatLayout({ casoId, onBack }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadModels = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/modelos`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const localModels = (data.local || []).map(modelo => modelo.name).filter(Boolean);
+        const fallback = data.default_ollama_model || 'llama3.2';
+        const hfModels = (data.huggingface || []).map(modelo => modelo.model_id).filter(Boolean);
+
+        if (!isMounted) return;
+        setOllamaModels(localModels);
+        setDefaultOllamaModel(fallback);
+        setSelectedOllamaModel(prev => prev || fallback);
+        setHfLegalModels(hfModels);
+        setSelectedHfModel(prev => prev || (hfModels[0] || 'ayushhh1662309/legal-chatbot-llama3-8b-Q5-K_M-gguf'));
+      } catch (error) {
+        if (!isMounted) return;
+        setOllamaModels([]);
+        setDefaultOllamaModel('llama3.2');
+        setSelectedOllamaModel(prev => prev || 'llama3.2');
+        setHfLegalModels([]);
+        setSelectedHfModel(prev => prev || 'ayushhh1662309/legal-chatbot-llama3-8b-Q5-K_M-gguf');
+      }
+    };
+
+    loadModels();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSend = async (e) => {
     e?.preventDefault();
@@ -95,6 +135,8 @@ export default function ChatLayout({ casoId, onBack }) {
           caso_id: casoId,
           message: userMessage.content,
           model: model,
+          ollama_model: model === 'ollama' ? (selectedOllamaModel || defaultOllamaModel) : null,
+          hf_model: model === 'huggingface' ? selectedHfModel : null,
           history: history
         })
       });
@@ -139,10 +181,44 @@ export default function ChatLayout({ casoId, onBack }) {
             onChange={(e) => setModel(e.target.value)}
             className="bg-bg-card border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer"
           >
+            <option value="ollama">Ollama (Local)</option>
+            <option value="huggingface">Hugging Face juridico</option>
             <option value="groq">Llama-3 70B (Groq)</option>
             <option value="gemini">Gemini 1.5 Flash (Google)</option>
           </select>
         </div>
+        {model === 'ollama' && (
+          <div className="mt-3 flex items-center gap-2 justify-end">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Modelo local</span>
+            <select
+              value={selectedOllamaModel}
+              onChange={(e) => setSelectedOllamaModel(e.target.value)}
+              className="bg-bg-card border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer min-w-44"
+            >
+              {ollamaModels.length > 0 ? (
+                ollamaModels.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))
+              ) : (
+                <option value={defaultOllamaModel}>{defaultOllamaModel}</option>
+              )}
+            </select>
+          </div>
+        )}
+        {model === 'huggingface' && (
+          <div className="mt-3 flex items-center gap-2 justify-end">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Modelo juridico</span>
+            <select
+              value={selectedHfModel}
+              onChange={(e) => setSelectedHfModel(e.target.value)}
+              className="bg-bg-card border border-border-default rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-primary transition-colors cursor-pointer min-w-44"
+            >
+              {(hfLegalModels.length > 0 ? hfLegalModels : ['ayushhh1662309/legal-chatbot-llama3-8b-Q5-K_M-gguf', 'starxicn/LAW-GPT', 'Dorado607/LawGPT_zh']).map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Main Chat Area */}
