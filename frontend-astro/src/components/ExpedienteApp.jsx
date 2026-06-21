@@ -721,6 +721,7 @@ export default function DashboardLayout() {
                             </p>
                           </div>
                         ) : (
+                          <>
                           <div className="overflow-x-auto scrollbar-custom">
                             <table className="w-full text-sm text-left text-text-primary">
                               <thead className="text-xs text-text-secondary uppercase bg-bg-input/50 border-b border-border-subtle">
@@ -843,6 +844,7 @@ export default function DashboardLayout() {
                               </div>
                             </div>
                           )}
+                          </>
                         )}
                       </div>
                     </div>
