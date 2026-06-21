@@ -308,9 +308,16 @@ def _guardar_artefactos(caso_id: str, indice: IndiceExpediente) -> None:
 
     # Guardar fragmentos en JSONL (formato eficiente para procesamiento posterior)
     fragmentos_path = workspace / "fragmentos.jsonl"
+    textos = []
     with open(fragmentos_path, "w", encoding="utf-8") as f:
         for frag in indice.fragmentos:
             f.write(json.dumps(frag.model_dump(mode="json"), ensure_ascii=False) + "\n")
+            textos.append(frag.texto)
+
+    # Guardar texto completo para los agentes HPN
+    if textos:
+        doc_completo = workspace / "documento_completo.txt"
+        doc_completo.write_text("\n\n".join(textos), encoding="utf-8")
 
     logger.info(f"[Intake] Artefactos guardados en {workspace}")
 
