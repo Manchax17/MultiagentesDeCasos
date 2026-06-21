@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, CheckCircle2, XCircle, FileJson, File, X, Info, ChevronDown, ChevronRight, MessageSquare, Network, Layers, Database } from 'lucide-react';
 import ChatLayout from './ChatLayout';
+import RedMulticapaView from './RedMulticapaView';
 
 const API_BASE = 'http://localhost:8000';
 const HF_CHAT_DEFAULT_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3';
@@ -450,7 +451,7 @@ export default function DashboardLayout() {
           
           <NavItem 
             id="network" 
-            label="Grafo de Red Nodal" 
+            label="Red Multicapa (M6)" 
             icon={Network} 
             disabled={!results} 
           />
@@ -853,20 +854,9 @@ export default function DashboardLayout() {
               </div>
             )}
 
-            {/* VISTA 2: Grafo M6 (Placeholder) */}
+            {/* VISTA 2: Red compleja multicapa (M6) */}
             {currentView === 'network' && (
-              <div className="w-full h-full flex flex-col items-center justify-center animate-[fadeIn_0.3s_ease] text-center">
-                <div className="w-24 h-24 rounded-full bg-accent-secondary/10 flex items-center justify-center mb-6 border-2 border-accent-secondary/20">
-                  <Network size={40} className="text-accent-secondary" />
-                </div>
-                <h2 className="text-2xl font-bold mb-3">Red de Nodos Complejos (M6)</h2>
-                <p className="text-text-secondary max-w-md">
-                  Aquí se visualizará el grafo interactivo de relaciones basado en la Matriz HPN. Podrás explorar gráficamente cómo se conectan los actores, los hechos y las pruebas.
-                </p>
-                <div className="mt-8 px-4 py-2 bg-bg-input border border-border-subtle rounded-full text-xs font-mono text-text-muted">
-                  En desarrollo...
-                </div>
-              </div>
+              <RedMulticapaView casoId={results?.casoId} hasMatriz={!!matriz} />
             )}
 
             {/* VISTA 3: Chatbot RAG */}
