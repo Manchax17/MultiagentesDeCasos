@@ -304,6 +304,27 @@ export default function DashboardLayout() {
     }
   };
 
+  const exportJSON = async () => {
+    if (!results?.casoId) {
+      addToast('No hay caso para exportar', 'error');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/expedientes/${results.casoId}/matriz/export?format=json`);
+      if (!res.ok) throw new Error('Error al exportar JSON');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `matriz_hpn_${results.casoId}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      addToast('Exportación JSON completada', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
   const matriz = hpnData?.filas_hpn || null;
   const auditoria = hpnData?.auditoria || [];
 
@@ -631,7 +652,8 @@ export default function DashboardLayout() {
                             Hechos, Pruebas y Normas extraídos automáticamente del expediente (Módulos M4 y M5).
                           </p>
                         </div>
-                        
+
+                        {/* ✅ BLOQUE CORREGIDO: un único div flex-col, sin </div> extra */}
                         <div className="flex flex-col gap-3 items-stretch md:items-end">
                           <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap justify-end">
                             <span className="font-semibold uppercase tracking-wider">Proveedor</span>
@@ -680,30 +702,40 @@ export default function DashboardLayout() {
                             )}
                           </div>
                           <div className="flex gap-2 justify-end flex-wrap">
-                          <button 
-                            onClick={generateMatriz}
-                            disabled={loadingMatriz}
-                            className="px-6 py-2.5 bg-gradient-to-r from-accent-secondary to-accent-primary text-white font-semibold rounded-xl shadow-lg hover:shadow-accent-secondary/30 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex items-center gap-2"
-                          >
-                            {loadingMatriz ? (
-                              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Procesando...</>
-                            ) : (
-                              <><Layers size={18} /> {matriz ? 'Regenerar Matriz HPN' : 'Generar Matriz HPN'}</>
-                            )}
-                          </button>
-                          {matriz && matriz.length > 0 && (
-                            <button 
-                              onClick={exportCSV}
-                              className="px-4 py-2.5 bg-bg-input border border-border-default hover:border-accent-primary text-text-primary font-semibold rounded-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                            <button
+                              onClick={generateMatriz}
+                              disabled={loadingMatriz}
+                              className="px-6 py-2.5 bg-gradient-to-r from-accent-secondary to-accent-primary text-white font-semibold rounded-xl shadow-lg hover:shadow-accent-secondary/30 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex items-center gap-2"
                             >
-                              📥 Exportar CSV
+                              {loadingMatriz ? (
+                                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Procesando...</>
+                              ) : (
+                                <><Layers size={18} /> {matriz ? 'Regenerar Matriz HPN' : 'Generar Matriz HPN'}</>
+                              )}
                             </button>
-                          )}
+                            {matriz && matriz.length > 0 && (
+                              <>
+                                <button
+                                  onClick={exportCSV}
+                                  className="px-4 py-2.5 bg-bg-input border border-border-default hover:border-accent-primary text-text-primary font-semibold rounded-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                >
+                                  📥 Exportar CSV
+                                </button>
+                                <button
+                                  onClick={exportJSON}
+                                  className="px-4 py-2.5 bg-bg-input border border-border-default hover:border-accent-primary text-text-primary font-semibold rounded-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                >
+                                  📄 Exportar JSON
+                                </button>
+                              </>
+                            )}
+                            {loadingMatriz && matrizProgress && (
+                              <p className="text-xs text-text-muted text-right">{matrizProgress}</p>
+                            )}
                           </div>
-                          {loadingMatriz && matrizProgress && (
-                            <p className="text-xs text-text-muted text-right">{matrizProgress}</p>
-                          )}
                         </div>
+                        {/* ✅ FIN BLOQUE CORREGIDO */}
+
                       </div>
 
                       <div className="p-0">
@@ -723,128 +755,128 @@ export default function DashboardLayout() {
                           </div>
                         ) : (
                           <>
-                          <div className="overflow-x-auto scrollbar-custom">
-                            <table className="w-full text-sm text-left text-text-primary">
-                              <thead className="text-xs text-text-secondary uppercase bg-bg-input/50 border-b border-border-subtle">
-                                <tr>
-                                  <th className="px-4 py-4 font-semibold">Fila</th>
-                                  <th className="px-4 py-4 font-semibold">Elemento</th>
-                                  <th className="px-4 py-4 font-semibold min-w-[180px]">Hecho</th>
-                                  <th className="px-4 py-4 font-semibold min-w-[160px]">Pruebas</th>
-                                  <th className="px-4 py-4 font-semibold min-w-[140px]">Normas</th>
-                                  <th className="px-4 py-4 font-semibold">Fuente</th>
-                                  <th className="px-4 py-4 font-semibold">Estado</th>
-                                  <th className="px-4 py-4 font-semibold">Riesgo</th>
-                                  <th className="px-4 py-4 font-semibold min-w-[140px]">Acción</th>
-                                  <th className="px-4 py-4 font-semibold">Editar</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border-subtle">
-                                {matriz.map((row, idx) => (
-                                  <tr key={row.fila_id || idx} className="hover:bg-bg-input/30 transition-colors group align-top">
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-accent-primary/10 text-accent-primary-light border-accent-primary/20">
-                                        {row.fila_id || `F-${String(idx + 1).padStart(3, '0')}`}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-4 text-xs text-text-secondary max-w-[120px]">
-                                      {row.elemento_juridico || 'Por determinar'}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      <p className="leading-relaxed text-text-primary text-xs">{resolveEntity(row.hecho_id, 'hechos')}</p>
-                                      <span className="text-[10px] text-text-muted font-mono">{row.hecho_id}</span>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      {(row.prueba_ids || []).length > 0 ? row.prueba_ids.map(id => (
-                                        <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'pruebas')}</p>
-                                      )) : <span className="text-text-muted text-xs">Sin pruebas</span>}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                      {(row.norma_ids || []).length > 0 ? row.norma_ids.map(id => (
-                                        <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'normas')}</p>
-                                      )) : <span className="text-text-muted text-xs">Sin normas</span>}
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-xs text-text-muted">
-                                      Pág. {row.fuente_expediente?.pagina ?? '-'}
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <select
-                                        value={row.estado_epistemico || 'por_evaluar'}
-                                        onChange={(e) => updateFila(row.fila_id, { estado_epistemico: e.target.value })}
-                                        className={`text-xs font-medium px-2 py-1 rounded-full border bg-transparent cursor-pointer ${
-                                          (row.estado_epistemico || '').toLowerCase() === 'probado' ? 'text-accent-success border-accent-success/20' :
-                                          (row.estado_epistemico || '').toLowerCase() === 'controvertido' ? 'text-accent-warning border-accent-warning/20' :
-                                          (row.estado_epistemico || '').toLowerCase() === 'sin_prueba' ? 'text-accent-danger border-accent-danger/20' :
-                                          'text-text-muted border-border-default'
-                                        }`}
-                                      >
-                                        <option value="probado">probado</option>
-                                        <option value="controvertido">controvertido</option>
-                                        <option value="sin_prueba">sin_prueba</option>
-                                        <option value="por_evaluar">por_evaluar</option>
-                                      </select>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <select
-                                        value={row.riesgo || 'medio'}
-                                        onChange={(e) => updateFila(row.fila_id, { riesgo: e.target.value })}
-                                        className="text-xs bg-bg-input border border-border-default rounded-md px-2 py-1 cursor-pointer"
-                                      >
-                                        <option value="bajo">bajo</option>
-                                        <option value="medio">medio</option>
-                                        <option value="alto">alto</option>
-                                        <option value="critico">critico</option>
-                                      </select>
-                                    </td>
-                                    <td className="px-4 py-4 text-xs text-text-secondary max-w-[160px]">
-                                      {row.accion_sugerida || '-'}
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <button
-                                        onClick={() => deleteFila(row.fila_id)}
-                                        className="text-xs text-accent-danger hover:bg-accent-danger/10 px-2 py-1 rounded-md transition-colors"
-                                      >
-                                        Eliminar
-                                      </button>
-                                    </td>
+                            <div className="overflow-x-auto scrollbar-custom">
+                              <table className="w-full text-sm text-left text-text-primary">
+                                <thead className="text-xs text-text-secondary uppercase bg-bg-input/50 border-b border-border-subtle">
+                                  <tr>
+                                    <th className="px-4 py-4 font-semibold">Fila</th>
+                                    <th className="px-4 py-4 font-semibold">Elemento</th>
+                                    <th className="px-4 py-4 font-semibold min-w-[180px]">Hecho</th>
+                                    <th className="px-4 py-4 font-semibold min-w-[160px]">Pruebas</th>
+                                    <th className="px-4 py-4 font-semibold min-w-[140px]">Normas</th>
+                                    <th className="px-4 py-4 font-semibold">Fuente</th>
+                                    <th className="px-4 py-4 font-semibold">Estado</th>
+                                    <th className="px-4 py-4 font-semibold">Riesgo</th>
+                                    <th className="px-4 py-4 font-semibold min-w-[140px]">Acción</th>
+                                    <th className="px-4 py-4 font-semibold">Editar</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {auditoria.length > 0 && (
-                            <div className="p-6 border-t border-border-subtle bg-bg-input/20">
-                              <h4 className="text-sm font-bold text-text-primary mb-3">
-                                Auditoría M8 — {auditoria.length} alertas en {matriz.length} filas
-                              </h4>
-                              <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-custom">
-                                {['critica', 'alta', 'media'].map(sev => {
-                                  const items = auditoria.filter(a => a.severidad === sev);
-                                  if (items.length === 0) return null;
-                                  return (
-                                    <div key={sev}>
-                                      <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-1">{sev}</p>
-                                      {items.slice(0, 15).map((alert, i) => (
-                                        <div key={i} className={`text-xs px-3 py-2 rounded-lg mb-1 border ${
-                                          sev === 'critica' ? 'border-accent-danger/30 bg-accent-danger/5 text-accent-danger' :
-                                          sev === 'alta' ? 'border-accent-warning/30 bg-accent-warning/5 text-accent-warning' :
-                                          'border-border-default bg-bg-input/50 text-text-secondary'
-                                        }`}>
-                                          <span className="font-mono font-bold">{alert.codigo}</span>
-                                          {alert.fila_id && <span className="ml-2 opacity-70">[{alert.fila_id}]</span>}
-                                          <span className="ml-2">{alert.mensaje}</span>
-                                        </div>
-                                      ))}
-                                      {items.length > 15 && (
-                                        <p className="text-[10px] text-text-muted ml-2">+{items.length - 15} alertas más...</p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                </thead>
+                                <tbody className="divide-y divide-border-subtle">
+                                  {matriz.map((row, idx) => (
+                                    <tr key={row.fila_id || idx} className="hover:bg-bg-input/30 transition-colors group align-top">
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-accent-primary/10 text-accent-primary-light border-accent-primary/20">
+                                          {row.fila_id || `F-${String(idx + 1).padStart(3, '0')}`}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-4 text-xs text-text-secondary max-w-[120px]">
+                                        {row.elemento_juridico || 'Por determinar'}
+                                      </td>
+                                      <td className="px-4 py-4">
+                                        <p className="leading-relaxed text-text-primary text-xs">{resolveEntity(row.hecho_id, 'hechos')}</p>
+                                        <span className="text-[10px] text-text-muted font-mono">{row.hecho_id}</span>
+                                      </td>
+                                      <td className="px-4 py-4">
+                                        {(row.prueba_ids || []).length > 0 ? row.prueba_ids.map(id => (
+                                          <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'pruebas')}</p>
+                                        )) : <span className="text-text-muted text-xs">Sin pruebas</span>}
+                                      </td>
+                                      <td className="px-4 py-4">
+                                        {(row.norma_ids || []).length > 0 ? row.norma_ids.map(id => (
+                                          <p key={id} className="text-xs text-text-secondary mb-1">{resolveEntity(id, 'normas')}</p>
+                                        )) : <span className="text-text-muted text-xs">Sin normas</span>}
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap text-xs text-text-muted">
+                                        Pág. {row.fuente_expediente?.pagina ?? '-'}
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <select
+                                          value={row.estado_epistemico || 'por_evaluar'}
+                                          onChange={(e) => updateFila(row.fila_id, { estado_epistemico: e.target.value })}
+                                          className={`text-xs font-medium px-2 py-1 rounded-full border bg-transparent cursor-pointer ${
+                                            (row.estado_epistemico || '').toLowerCase() === 'probado' ? 'text-accent-success border-accent-success/20' :
+                                            (row.estado_epistemico || '').toLowerCase() === 'controvertido' ? 'text-accent-warning border-accent-warning/20' :
+                                            (row.estado_epistemico || '').toLowerCase() === 'sin_prueba' ? 'text-accent-danger border-accent-danger/20' :
+                                            'text-text-muted border-border-default'
+                                          }`}
+                                        >
+                                          <option value="probado">probado</option>
+                                          <option value="controvertido">controvertido</option>
+                                          <option value="sin_prueba">sin_prueba</option>
+                                          <option value="por_evaluar">por_evaluar</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <select
+                                          value={row.riesgo || 'medio'}
+                                          onChange={(e) => updateFila(row.fila_id, { riesgo: e.target.value })}
+                                          className="text-xs bg-bg-input border border-border-default rounded-md px-2 py-1 cursor-pointer"
+                                        >
+                                          <option value="bajo">bajo</option>
+                                          <option value="medio">medio</option>
+                                          <option value="alto">alto</option>
+                                          <option value="critico">critico</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-4 py-4 text-xs text-text-secondary max-w-[160px]">
+                                        {row.accion_sugerida || '-'}
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <button
+                                          onClick={() => deleteFila(row.fila_id)}
+                                          className="text-xs text-accent-danger hover:bg-accent-danger/10 px-2 py-1 rounded-md transition-colors"
+                                        >
+                                          Eliminar
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                          )}
+
+                            {auditoria.length > 0 && (
+                              <div className="p-6 border-t border-border-subtle bg-bg-input/20">
+                                <h4 className="text-sm font-bold text-text-primary mb-3">
+                                  Auditoría M8 — {auditoria.length} alertas en {matriz.length} filas
+                                </h4>
+                                <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-custom">
+                                  {['critica', 'alta', 'media'].map(sev => {
+                                    const items = auditoria.filter(a => a.severidad === sev);
+                                    if (items.length === 0) return null;
+                                    return (
+                                      <div key={sev}>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-1">{sev}</p>
+                                        {items.slice(0, 15).map((alert, i) => (
+                                          <div key={i} className={`text-xs px-3 py-2 rounded-lg mb-1 border ${
+                                            sev === 'critica' ? 'border-accent-danger/30 bg-accent-danger/5 text-accent-danger' :
+                                            sev === 'alta' ? 'border-accent-warning/30 bg-accent-warning/5 text-accent-warning' :
+                                            'border-border-default bg-bg-input/50 text-text-secondary'
+                                          }`}>
+                                            <span className="font-mono font-bold">{alert.codigo}</span>
+                                            {alert.fila_id && <span className="ml-2 opacity-70">[{alert.fila_id}]</span>}
+                                            <span className="ml-2">{alert.mensaje}</span>
+                                          </div>
+                                        ))}
+                                        {items.length > 15 && (
+                                          <p className="text-[10px] text-text-muted ml-2">+{items.length - 15} alertas más...</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
